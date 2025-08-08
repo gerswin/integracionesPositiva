@@ -1,0 +1,53 @@
+trigger:
+  - prod-gcp-new
+pool:
+  name: PositivaSGDAPool
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: Infraestructura-DevOps/devops_util_pipeline
+
+stages:
+  - stage: Analyse
+    jobs:
+      - job: maven
+
+        variables:
+          - name: MAVEN_CACHE_FOLDER
+            value: $(Pipeline.Workspace)/.m2/repository
+
+        steps:
+          - task: Cache@2
+            inputs:
+              key: 'maven | "$(Agent.OS)" | **/pom.xml'
+              restoreKeys: |
+                maven | "$(Agent.OS)"
+                maven
+              path: ${{ variables.MAVEN_CACHE_FOLDER }}
+            displayName: Cache Maven local repo
+          - template: sonar-steps-maven-based.yml@templates
+            parameters:
+              SONAR_HOST: SONAR_QUBE
+              SONAR_KEY: 001_-_POSITIVA_SGDEA_IntegracionesPositiva_AYyxym1DMArOCpeJLkt3
+              SONAR_EXCLUSIONS: |
+                src/main/resources
+              SONAR_SOURCES: src/main/java
+              SONAR_PROJECT_NAME: 001_PositivaSGDEA_IntePositiva
+              JDK_VERSION: 1.17
+              PATH_TO_PUBLISH: '$(Build.SourcesDirectory)/target/sgdea-0.0.1-SNAPSHOT.jar'
+
+  - stage: Build_Docker
+    jobs:
+      - job: Build_Docker
+        steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifactName: 'artifact'
+              targetPath: $(Build.SourcesDirectory)
+
+          - template: steps-docker-gcp.yml@templates
+            parameters:
+              REPOSITORY_NAME_GCP: $(DOCKER_REPOSITORY_NAME_GCP_PROD)
+              DOCKER_CONTAINER_REGISTRY: ar-docker-gcp-prod
